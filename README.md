@@ -1,5 +1,6 @@
 # schema matching
 Notes for schema matching
+https://en.wikipedia.org/wiki/Schema_matching
 
 # Prior Art
 * https://github.com/mohamedbiniz/ontobuilder
