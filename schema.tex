@@ -1,4 +1,4 @@
-\documentclass{article}
+\documentclass{datamade}
 
 %-------Packages---------
 \usepackage{tikz}
@@ -6,25 +6,10 @@
 \usepackage{setspace}
 \usepackage{tikz-cd}
 \usepackage[utf8]{inputenc}
-\usepackage{amssymb,amsfonts}
 \usepackage[all,arc]{xy}
-\usepackage{enumerate}
-\usepackage{amsmath}
-\usepackage{latexsym}
-\usepackage{dsfont}
-\usepackage{mathrsfs}
-\usepackage{stmaryrd}
-\usepackage{hyperref}
-\usepackage[all]{xy}
-\usepackage{verbatim}  %%includes comment environment
-\usepackage{fullpage}  %%smaller margins
-\usepackage{ragged2e}
 \usepackage{amsthm}
 \usepackage{amsrefs}
-\usepackage{epsfig}
-\usepackage{amscd}
 
-\usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
 
 %% bold math capitals
 \newcommand{\bA}{\mathbf{A}}
@@ -157,27 +142,52 @@ text width=5em, text centered, rounded corners, minimum height=4em]
 \bibliographystyle{plain}
 
 %--------Meta Data: Fill in your info------
-\title{A Short Survey of Schema Matching}
+\title{Modern Approaches to Schema Matching}
 \author{Peter Xu (DataMade)}
 \begin{document}
 	\maketitle
 	
-\section{Introduction}
+\section*{Introduction}
 
-The task of schema matching concerns itself with combining a pair of schemas by finding semantic relationships between the items in them, allowing one to identify or create relationships between the items; this task can often be arduous by hand.\footnote{Terminology note: ``ontology,'' while perhaps slightly different on an abstract level, is practically used interchangeably in the literature. Hence ``schema matching'' and ``ontology merging'' are both ways to refer to the same task, for example. I write of ``items'' in ``schemas'' in this survey for the sake of simple terminology and concreteness, but ``concepts'' in ``ontologies'' is also valid.} When one is simply trying to identify items, this can be done at the simple level of trying to determine whether they are semantically identical, but more complex relationships can be considered as well. 
+With large collections of data, an analyst often struggles to discover
+data that is relevant to the entity of interest. For her to do her
+work, the analyst needs to know which datasets could be about her
+subject and what the fields in those datasets might mean. \emph{Schema
+  matching} attempts to carry out these two task in an automated or
+semi-automated way.
 
-Different representations and levels of structure to the schemas are possible. For example, the schema itself is commonly modeled as a graph, whose combinatorial properties are well-suited to capture the idea of items being related to each other. However, other structure can be used as well. In the case of schemas for database tables, the existence of instances (rows) of course provides an enormous other source of structure for the task.
+More precisely, schema matching addresses two questions.
 
-Essentially every schema matching method in practice or the literature operates by detecting similarities in these levels of structure in various senses, then amalgating these findings in to obtain numerical measures of similarity between items in the to-be-matched schemas. Many methods construct a ``similarity matrix'' or ``similarity cube'' whose rows/columns are the items of the two schemas, and whose entries are these measures. By examining which pairs of objects match most closely, a plausible set of relations is then derived.
+\begin{itemize}
+  \item Which datasets are likely to contain information about the
+    same type of entity?
+  \item Which fields in separate datasets are likely to contain comparable
+    information about an entity?
+\end{itemize}
 
-In addition to the choices made at the junctures in this workflow, there are a number of holistic ideas which often offer substantial increases in matching success, including probabilistic methods, use of real-world or prior data, and splitting up matching problems into smaller ones.
+Either problem is difficult by itself, but schema matching is made
+even trickier because these questions are entangled. For example, in
+order to guess that two columns, from separate tables, are both
+referring to a date of birth, we might need know that the rows in each
+table are referring to people. Conversely, if we knew that two tables
+each had a field that represented a date of birth, we could likely
+guess that the rows are about people.
 
-To measure the success of matchers is difficult, because of the variation in the nature of the task, the variation in the representation of the data, and a lack of clear objectively correct matches in many instances. When the latter is possible, the usual accuracy measures can be implemented, but otherwise, more agnostic methods can be employed.
+Schema matching has been an extensive subject of academic research.
+In this memo, we highlight current approaches to the problems of
+schema matching evaluate a number of open source
+toolkits.\footnote{Terminology note: ``ontology,'' is used
+  interchangeably in the literature and ``Schema matching'' and
+  ``ontology merging'' are both ways to refer to the same task. I
+  write of ``fields'' in ``tables'', but for simplicity and
+  concreteness, but ``items'' in ``schemas'' or ``concepts'' in
+  ``ontologies'' would also be valid.}  The COMA matcher \cite{coma}
+will be referred to often, as it is includes most of of the standard
+schema matching techniques.
 
-I will describe some of the different choices and techniques in the different aspects of the matching process mentioned above, with the aim of giving an idea of what features are available in a typical matching algorithm. The COMA matcher \cite{coma} will be referred to often, as its feature array is very comprehensive with respect to the standard techniques used in schema matchers. When possible, results of tests of accuracy will be provided and compared.
 
+\section{Comparing Tables}
 
-\section{Broad structures}
 
 The question of how the schema is modelled is a subtle one. Particular representations - e.g. various XML specifications, JSON, internal database formats, etc. - are very often irrelevant, as most of the structure to them is auxilliary and technical rather than being conceptually meaningful, and even when it is so, it tends not to aid in matching algorithms. 
 
