@@ -9,6 +9,8 @@
 \usepackage[all,arc]{xy}
 \usepackage{amsthm}
 \usepackage{amsrefs}
+\usepackage{amsmath}
+\usepackage{todo}
 
 
 %% bold math capitals
@@ -174,57 +176,207 @@ each had a field that represented a date of birth, we could likely
 guess that the rows are about people.
 
 Schema matching has been an extensive subject of academic research.
-In this memo, we highlight current approaches to the problems of
-schema matching evaluate a number of open source
-toolkits.\footnote{Terminology note: ``ontology,'' is used
-  interchangeably in the literature and ``Schema matching'' and
-  ``ontology merging'' are both ways to refer to the same task. I
-  write of ``fields'' in ``tables'', but for simplicity and
-  concreteness, but ``items'' in ``schemas'' or ``concepts'' in
-  ``ontologies'' would also be valid.}  The COMA matcher \cite{coma}
-will be referred to often, as it is includes most of of the standard
-schema matching techniques.
+In this memo, we review that literature and highlight current
+approaches to the problems of schema matching and evaluate a number of
+open source toolkits. The COMA matcher \cite{coma} will be referred to
+often, as it is includes most of of the standard schema matching
+techniques.
+
+Throughout this memo we will be talking about tables and columns,
+since that is how most of the CARRA data is organized. However, the
+field of schema matching encompasses matching data that has
+hierarchical or network structure, such as XML data or a database
+schema that represents data on an entity across tables. The methods we
+describe here apply to that type of data as well.
+
+\section*{Comparing Columns}
+Schema matching starts with trying to identify columns that contain
+the same type of information. Most modern schema matchers do this by
+computing a number of different distance measures for each possible
+pair of columns and then applying some rule to aggregate these into a
+single score for each column pair. A decision rule is applied to these
+scores to decide which column pairs are matches.
+
+\subsection*{Distance Measures}
+The distance measures used in schema matching typically are comparing
+the names of a column, the contents of a column, and the place of the
+column in the structure of the table.
+
+\subsubsection*{String Distance}
+Column names can be compared by calculating the distance between the
+strings of the column names. The simplest measure is an exact match,
+which is $0$ if the strings are exactly the same and $1$ if not.
+
+Beyond that, there are two broad ways of comparing the distance
+between strings. The first is to calculate how many insertions,
+deletions, or substitutions are required to turn one string into
+another. For example, \verb+SCHEMA+ and \verb+SCEMA+ has an distance
+of one, because you can transform one string into another with either
+a deletion or an insertion.
+
+Alternately, a string can be treated as a collection of characters and
+we can calculate the overlap between the collections. A simple measure
+of this type is the Jaccard distance
+
+\begin{align*}
+\operatorname{J}(A, B) = 1 - \frac{\text{\# Unique Letters
+    Common to A and B}}{(\text{\# Unique Letters in A}) +
+    (\text{\# Unique Letters in B}) - (\text{\# Unique Letters
+      Common to A and B})}
+\end{align*}
+so that \verb+SCHEMA+ and \verb+SCEMA+ have a Jaccard distance of $0.167$. 
+
+Both approaches have many, many variations, and existing toolkits
+usually provide at least four or five to choose from.
+
+\subsection{Semantic Distance}
+We would also like to compare the meaning of column names. If column names
+were synonyms then there should be little distance between
+them. If both column names are examples of common class, for example
+\verb+HOURLY WAGE+ and \verb+ANNUAL SALARY+, we would want to score
+those as similar, although maybe not as similar as synonyms.
+
+In most modern schema matching toolkits, the semantic distance between
+column names are calculated with the aid of dictionaries that list
+both synonyms and the class that the word is an example of. Typically,
+the semantic distance between two columns names is calculated in the
+following way.
+
+\begin{enumerate}
+  \item If the words are exactly the same, then the distance is $0$.
+  \item If the words are synonyms then, the the distance is $d_1$.
+  \item If the words are examples of the same class then the distance
+    is $d_2$.
+  \item If one word is an example of the second word then the distance
+    is $d_3$. For example, \verb+HOURLY WAGE+ and \verb+COMPENSATION+.
+\end {enumerate}
+
+The setting of the distances $d_1$, $d_2$, and $d_3$ is typically
+arbitrary, with $d_3$ greater than $d_2$ and $d_2$ greater than $d_1$.
+
+The main drawback to the dictionary based approach is that it requires
+a domain specific taxonomic dictionary, which is usually laborious to
+construct. Available, general purpose taxonomic dictionaries, like
+WordNet, do not usually help much in schema matching.
+
+A naive implementation of the dictionary approach will also not be
+robust to misspellings or column name abbreviations. This can
+addressed with algorithms for approximate string matching used in
+spelling correction algorithms. All existing systems seem to have only
+implemented the dictionary approach naively.\todo{is that right}
+
+Recent developments in natural language processing suggests a
+promising alternative for calculating the semantic distances. The
+word2vec model has shown itself to be surprisingly good model for
+measuring the ``semantic'' distance between words, and could likely be
+usefully applied for schema matching. This technique requires a large
+corpus of tables, but does not require a handmade taxonomic
+dictionary.\cite{http://radimrehurek.com/gensim/models/word2vec.html}
+
+\subsection*{Data Types}
+If we have access to the database system, we can extract metadata on
+the types of data that can occur in the columns of table. For example,
+we can see whether a column contains integers, floating point numbers,
+text, dates, or timestamps. When we compare table columns, we can
+compare data types and score columns with the same data types as
+similar.
+
+Unfortunately, data often does not have the most specific data type
+possible in a database. Timestamps can be represented in
+an integer field, integers can be represented in floating point number
+fields, and everything can be represented as text. The distance
+between timestamp columns should be closer than between text
+columns.
+
+\subsection*{Inferring Semantic Meaning}
+It is often possible to infer the type of information contained in the
+column by examining the data in the column. One method,
+described in \cite{regex}, is to develop a library of common formats
+(e.g. different ways to write dates/times, email addresses, zip codes,
+etc.) described by regular expressions. If columns match the same
+formats, then can score them as similar.
+
+This idea could be made more robust by using machine learning
+technique for text classification, instead of hand coded, brittle rules.
+
+\subsection*{Distributional Distance}
+If two columns contain the same type of information about the same
+type of entities, they will often have similar distributions of
+data. For example, the distribution of birth dates of unemployment
+recipients will be more similar to the distribution of birth dates of
+high school freshman than the distribution of application dates for
+business licenses, because there will be very few weekends in the
+application dates for weekends.
+
+We will often usefully compare distributions by comparing summary
+statistics. If we have continuous data, these will likely include
+
+\begin{itemize}
+\item Range of Values
+\item Average or Median
+\item Standard Deviation or Interquartile Range
+\item Number of Missing Values
+\end{itemize}
+
+If we have categorical data then we can compare
+
+\begin{itemize}
+\item All possible values
+\item Proportion of categorical values 
+\end{itemize}
+
+Alternately, we can compare the distributions directly using
+distribution distance measures like the Kullback-Leibler divergence,
+the earthmover's distance, or the Chi Squared distance. This can
+either be done with the full data, or more practically a representative
+sample.
+
+In order to fully benefit from comparing distributions, some care will
+be necessary to handle differences in units and coding. If the data is
+continuous, float and integer data may need to be standardized. If the
+data is categorical, the proportions of the categories should be
+compared but the labels of the categories should likely be ignored.
+
+\subsection*{Combining Distances}
+Using these distance measures, we will have an array of distances for
+every column pair. In order to find the best matches, we need to
+combine these multiple measures into a single score.
+
+Modern toolkits allow the user to choose how they want to
+aggregate. For example, COMA lets the user decide whether they want
+the maximum score, the minimum score, the average score, or a weighted
+average score.
+
+All of these approaches potentially discard a lot of information and
+also require that each distance measure be normalized to have the same
+scale. It would be a much more efficient use of information, and also
+simpler, to use the distance measures as features in a statistical
+model that predicted whether a pair of columns were about the same
+thing or not.
+
+If the distance scores were simply features, then we could remove many
+of the arbitrary decisions that we must make within the existing
+approach.
+
+For example, instead of choosing how to score the distance between a
+timezone datatype and a integer datatype, we could just have a set of
+indicator variables that indicate what combination of data types a
+pair of columns have. Using logistic regression, or a similar
+technique, we would then learn what combinations suggested a good
+match or a bad match.
+
+In order to use the machine learning approach, labels are
+required. The 
 
 
-\section{Comparing Tables}
 
 
-The question of how the schema is modelled is a subtle one. Particular representations - e.g. various XML specifications, JSON, internal database formats, etc. - are very often irrelevant, as most of the structure to them is auxilliary and technical rather than being conceptually meaningful, and even when it is so, it tends not to aid in matching algorithms. 
 
-As such, matchers such as COMA explicitly pull out a more abstract combinatorial structure such as a graph, whose nodes are items in the schema and whose edges can be taken to represent kinds of relations. In simple cases, these can be undirected so that existence of edges just mean any sort of relationship between the nodes; in more sophisticated contexts, directed edges can indicate membership (``part-of'') or subsumption (``is-a'') of concepts, depending on what makes sense for the domain one is working in. Then the problem becomes to identify and relate the nodes and edges of the graphs representing the two schemas.
+If use more than one type of distance measure, we 
 
-For example, below is what a directed graph representation for schema about cars:
-
-\begin{center}
-	\begin{tikzpicture}[node distance = 2cm, auto]
-% Place nodes
-\node [block] (car) {car};
-\node [block, below of=car] (color) {color};
-\node [block, left of = color] (model) {model};
-\node [block, right of = color] (age) {age};
-\path [line] (car) -- (color);
-\path [line] (car) -- (model);
-\path [line] (car) -- (age);
-\end{tikzpicture}
-\end{center}
-
-However, as nicely combinatorial as this makes the framing of the problem, some schema matchers do use other representational data besides what can be captured in such a model. For example, OntoBuilder \cite{ontobuilder}, which scrapes its schemas from website forms, uses the ordering of the form elements in the DOM structure of the forms to aid its matching process. For example, when extracting a schema about a trip, it is valuable to have the information that the ``depart date'' field comes before the ``return date'' field, since perhaps on a different webpage about the same information, they are called the ``leave date'' and the ``arrive date,'' making lexical comparisons difficult. 
-
-Along the same lines, the situation is much changed if one deals with schemas which come from database specifications or similar, since in that case the volume of instance data will generally provide the most useful tool for matching. In particular, database table schemas will often lack pre-existing relational structure, being just a collection of columns, making the task of figuring out similarity one almost entirely coming from the format of the table contents. We will hence examine techniques for estimating similarity from instance data as their own category in the next section.
-
-Auxiliary information to help matching can also be external to the data: when working in a well-traversed domain, semantic dictionaries are often valuable. This can be implemented as a third schema in addition to the two which are to be matched, which contains relevant items in the domain (and thus probably many of the items in the two schemas), in which all the real-world semantic relations are known. Such semantic dictionaries can be compiled independently of any schema matching, but previous schema matches from the same domain can also be used to generate approximations to dictionaries of this kind, which is often helpful when one is using a matcher many times on a project. This last idea in particular is one of the main features of COMA. As a simple example of this, two items in schemas labeled ``soccer'' and ``basketball'' might appear to have no relation based on only the schemas themselves, yet one might wish to know that they both areball sports, which could be accomplished if one had a third schema created from this real-world information.
-
-\section{Item similarity}
-
-As mentioned earlier, the primary way matches between schema items are found is via various ways of calculating similarity between each pair of items, one from the first and one from the second schema. These similarity measures can be roughly divided into three types: those using the item labels, those using the schema structure, and those using the instance data; we will give an account of some notable methods belonging to each type. 
-
-In this section, we will by default assume that one is looking for simple two-way relationships rather than more complicated asymmetrical ones, since the idea of a coefficient of similarity is more naturally applicable to the former. However, similarity measures which may also be used asymmetrically will be noted as well when they appear.
 
 An essential point to remember is that each of these methods outputs a numerical measure of similarity, generally normalized to a number between $0$ and $1$ for later aggregation purposes. For example, methods which simply look for the presence or absence of some feature common to both item labels may have some weight like $0.5$ or $0.7$ assigned to a successful match depending on how significant such a common feature is felt to be; these relative magnitudes may turn out to be significant later depending on the aggregation process used, though not if the measures are reweighted before aggregating (see next section). Thus, there is certainly a fair amount of arbitrariness involved.
 
-Matching just by item label, of course, is the simplest class; the methods involved are just all the standard methods of finding similiarities between two strings. Such methods can be broadly divided into two subcategories of measures of lexicographic similarity (common substrings, edit distance, etc.) and semantic similarity, using a synonym/hyponym\footnote{A is a hyponym of B if every A is an B. One also says that B is a hypernym of A.} dictionary or similar auxiliary resource. Hyponyms and synonyms can be distinguished by assigning a hyponym relation a slightly lower coefficient than a synonym relation. For example, ``car'' and ``automobile'' might give a matching score of 0.7, whereas ``car'' and ``transportation'' only 0.5. Of course, in the asymmetrical case, a hyponym relation only will affect one of the two matching coefficients between the relevant items. 
-
-Somewhat more refined than measures which just look at the labels of individual items are those which exploit the structure of the given schemas to some degree. Given graph representations, one can determine the lexical similarity of the labels of some set of ``relatives'' of a node, for example. In the case where the graphs are directed and so indicate a hierarchical relationship of concepts, this is especially useful, since one can compare the chains of parent nodes, or all the lowest-level children (``leaves''), which will tend to contain much semantic information. The OntoBuilder process mentioned in the previous section is also an example of a method of this type, as it uses the DOM hierarchy (which is even totally ordered) of the online forms from which it extracts the schemas in a similar way as described. For a simple example involving graph representations, suppose we have two schemas as follows:
 
 \begin{center}
 	\begin{tikzpicture}[node distance = 2cm, auto]
