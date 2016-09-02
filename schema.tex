@@ -145,14 +145,14 @@ text width=5em, text centered, rounded corners, minimum height=4em]
 
 %--------Meta Data: Fill in your info------
 \title{Modern Approaches to Schema Matching}
-\author{Peter Xu (DataMade)}
+\author{Forest Gregg and Peter Xu, DataMade}
 \begin{document}
 	\maketitle
 	
 \section*{Introduction}
 
 With large collections of data, an analyst often struggles to discover
-data that is relevant to the entity of interest. For her to do her
+all the data that is relevant to her question. For her to do her
 work, the analyst needs to know which datasets could be about her
 subject and what the fields in those datasets might mean. \emph{Schema
   matching} attempts to carry out these two task in an automated or
@@ -175,32 +175,83 @@ table are referring to people. Conversely, if we knew that two tables
 each had a field that represented a date of birth, we could likely
 guess that the rows are about people.
 
-Schema matching has been an extensive subject of academic research.
-In this memo, we review that literature and highlight current
-approaches to the problems of schema matching and evaluate a number of
+\subsection*{The Schema Matching Literature}
+In the early 2000s, schema matching was an active topic of academic
+research. The research was largely motivated by the promise and
+problems of the ``Semantic Web,'' which envisioned a near-term future
+where many facts about the world were represented in semantically rich
+machine readable formats. For example, some information about the
+Empire State Building could be represented as:
+
+\begin{verbatim}
+    <script type="application/ld+json">
+    {
+      "@context": "http://schema.org",
+      "@type": "Place",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "40.75",
+        "longitude": "73.98"
+      },
+      "name": "Empire State Building"
+    }
+    </script>
+\end{verbatim}
+
+Where all the meaning of \verb+@context+, \verb+@type+, \verb+geo+,
+and \verb+name+ are defined more or less precisely at
+\url{http://schema.org/Place}. If a sizable fraction of human
+knowledge was represented in this way, then machines could begin to
+deduce new and interesting things through syllogistic reasoning. For
+example, if hotels published semantic information about their rooms
+and restaurants published their menus semantically, then computers
+could help find the best priced room that's close to many restaurants,
+without either hotels, restaurants, even being aware of each other.
+
+The Semantic Web quickly ran into two problems. First, it's ends up
+being very, very difficult to adequately represent any interesting
+domain of human action in a way that is both unambiguous and that
+supports many different uses and cases. Publishers of semantic data
+tended to invent their own, idiosyncratic way of representing the data
+that worked for them.
+
+Research in schema matching was focused on harmonizing these
+idiosyncratic representations. Work progressed for a few years until
+the second main problem of the Semantic Web became apparent. Most
+publishers of information never found a compelling reason to publish
+data in any of these formats. Active research fell off sharply by
+2005.
+
+Because of this history, the academic literature has two features that
+limit its use for a next generation data warehouse like CARRA. First,
+these literature generally assumes that data is represented using
+controlled, semantically rich, and hierarchical data formats. In much
+of the data that CARRA will work with, the data is represented in flat
+tables, column names were chosen idiosyncratically, and there is no
+codebook let alone a machine readable description of what each column
+means.
+
+Second, the methods described in this literature are simplistic. The
+field only had a few years to develop and the active period occurred
+about five years before machine learning techniques were commonly
+being used throughout computer science.
+
+In this memo, we review that literature and highlight opportunities to
+advance upon the ideas. We also will evaluate a number of
 open source toolkits. The COMA matcher \cite{coma} will be referred to
 often, as it is includes most of of the standard schema matching
 techniques.
 
-Throughout this memo we will be talking about tables and columns,
-since that is how most of the CARRA data is organized. However, the
-field of schema matching encompasses matching data that has
-hierarchical or network structure, such as XML data or a database
-schema that represents data on an entity across tables. The methods we
-describe here apply to that type of data as well.
-
 \section*{Comparing Columns}
 Schema matching starts with trying to identify columns that contain
-the same type of information. Most modern schema matchers do this by
+the same type of information. Most existing schema matchers do this by
 computing a number of different distance measures for each possible
 pair of columns and then applying some rule to aggregate these into a
-single score for each column pair. A decision rule is applied to these
-scores to decide which column pairs are matches.
+single score for each column pair. 
 
 \subsection*{Distance Measures}
-The distance measures used in schema matching typically are comparing
-the names of a column, the contents of a column, and the place of the
-column in the structure of the table.
+The distance measures used in schema matching typically either compare
+the names of columns or the contents of columns.
 
 \subsubsection*{String Distance}
 Column names can be compared by calculating the distance between the
@@ -229,15 +280,16 @@ so that \verb+SCHEMA+ and \verb+SCEMA+ have a Jaccard distance of $0.167$.
 Both approaches have many, many variations, and existing toolkits
 usually provide at least four or five to choose from.
 
-\subsection{Semantic Distance}
-We would also like to compare the meaning of column names. If column names
-were synonyms then there should be little distance between
-them. If both column names are examples of common class, for example
+\subsubsection*{Semantic Distance}
+If the computers already knew the meaning of column names, then the
+problem of matching columns would be trivial to solve.  If columns
+names are synonyms, there should be little distance between them.  If
+both column names are examples of common class, for example
 \verb+HOURLY WAGE+ and \verb+ANNUAL SALARY+, we would want to score
 those as similar, although maybe not as similar as synonyms.
 
-In most modern schema matching toolkits, the semantic distance between
-column names are calculated with the aid of dictionaries that list
+In most schema matching toolkits, the semantic distance between
+column names is calculated with the aid of dictionaries that list
 both synonyms and the class that the word is an example of. Typically,
 the semantic distance between two columns names is calculated in the
 following way.
@@ -257,13 +309,12 @@ arbitrary, with $d_3$ greater than $d_2$ and $d_2$ greater than $d_1$.
 The main drawback to the dictionary based approach is that it requires
 a domain specific taxonomic dictionary, which is usually laborious to
 construct. Available, general purpose taxonomic dictionaries, like
-WordNet, do not usually help much in schema matching.
+WordNet,\cite{wordnet} do not usually help much in schema matching.
 
 A naive implementation of the dictionary approach will also not be
 robust to misspellings or column name abbreviations. This can
-addressed with algorithms for approximate string matching used in
-spelling correction algorithms. All existing systems seem to have only
-implemented the dictionary approach naively.\todo{is that right}
+be addressed with algorithms for approximate string matching used in
+spelling correction algorithms. 
 
 Recent developments in natural language processing suggests a
 promising alternative for calculating the semantic distances. The
@@ -271,9 +322,9 @@ word2vec model has shown itself to be surprisingly good model for
 measuring the ``semantic'' distance between words, and could likely be
 usefully applied for schema matching. This technique requires a large
 corpus of tables, but does not require a handmade taxonomic
-dictionary.\cite{http://radimrehurek.com/gensim/models/word2vec.html}
+dictionary.\cite{gensim}
 
-\subsection*{Data Types}
+\subsubsection*{Data Types}
 If we have access to the database system, we can extract metadata on
 the types of data that can occur in the columns of table. For example,
 we can see whether a column contains integers, floating point numbers,
@@ -286,9 +337,10 @@ possible in a database. Timestamps can be represented in
 an integer field, integers can be represented in floating point number
 fields, and everything can be represented as text. The distance
 between timestamp columns should be closer than between text
-columns.
+columns. A robust system will attempt to infer the most
+specific data type possible for a column.
 
-\subsection*{Inferring Semantic Meaning}
+\subsubsection*{Inferring Semantic Meaning}
 It is often possible to infer the type of information contained in the
 column by examining the data in the column. One method,
 described in \cite{regex}, is to develop a library of common formats
@@ -306,7 +358,7 @@ data. For example, the distribution of birth dates of unemployment
 recipients will be more similar to the distribution of birth dates of
 high school freshman than the distribution of application dates for
 business licenses, because there will be very few weekends in the
-application dates for weekends.
+application dates.
 
 We will often usefully compare distributions by comparing summary
 statistics. If we have continuous data, these will likely include
@@ -321,14 +373,14 @@ statistics. If we have continuous data, these will likely include
 If we have categorical data then we can compare
 
 \begin{itemize}
-\item All possible values
-\item Proportion of categorical values 
+\item All Possible Values
+\item Proportion of Categorical Values 
 \end{itemize}
 
 Alternately, we can compare the distributions directly using
 distribution distance measures like the Kullback-Leibler divergence,
 the earthmover's distance, or the Chi Squared distance. This can
-either be done with the full data, or more practically a representative
+either be done with the full data, or more practically, a representative
 sample.
 
 In order to fully benefit from comparing distributions, some care will
@@ -342,138 +394,245 @@ Using these distance measures, we will have an array of distances for
 every column pair. In order to find the best matches, we need to
 combine these multiple measures into a single score.
 
-Modern toolkits allow the user to choose how they want to
-aggregate. For example, COMA lets the user decide whether they want
-the maximum score, the minimum score, the average score, or a weighted
-average score.
+At the end of the column comparison phase, we will compared
+every pair of columns using a number of distance measures. 
 
-All of these approaches potentially discard a lot of information and
-also require that each distance measure be normalized to have the same
-scale. It would be a much more efficient use of information, and also
-simpler, to use the distance measures as features in a statistical
-model that predicted whether a pair of columns were about the same
-thing or not.
-
-If the distance scores were simply features, then we could remove many
-of the arbitrary decisions that we must make within the existing
-approach.
-
-For example, instead of choosing how to score the distance between a
-timezone datatype and a integer datatype, we could just have a set of
-indicator variables that indicate what combination of data types a
-pair of columns have. Using logistic regression, or a similar
-technique, we would then learn what combinations suggested a good
-match or a bad match.
-
-In order to use the machine learning approach, labels are
-required. The 
-
-
-
-
-
-If use more than one type of distance measure, we 
-
-
-An essential point to remember is that each of these methods outputs a numerical measure of similarity, generally normalized to a number between $0$ and $1$ for later aggregation purposes. For example, methods which simply look for the presence or absence of some feature common to both item labels may have some weight like $0.5$ or $0.7$ assigned to a successful match depending on how significant such a common feature is felt to be; these relative magnitudes may turn out to be significant later depending on the aggregation process used, though not if the measures are reweighted before aggregating (see next section). Thus, there is certainly a fair amount of arbitrariness involved.
-
+Say we are comparing two tables. The first has the columns
+\verb+automobile+, \verb+color+, \verb+years+, and \verb+owner+. The
+second table has the columns \verb+car+, \verb+color+, \verb+age+,
+and \verb+owned by+. We have compared all pair combinations using an
+edit distance and a dictionary-based semantic distance
 
 \begin{center}
-	\begin{tikzpicture}[node distance = 2cm, auto]
-	% Place nodes
-	\node [block] (car) {car};
-	\node [block, below of=car] (color) {color};
-	\node [block, left of = color] (model) {model};
-	\node [block, right of = color] (age) {age};
-	\path [line] (car) -- (color);
-	\path [line] (car) -- (model);
-	\path [line] (car) -- (age);
-	
-	% Place nodes
-	\node [block, below of = color] (automobile) {automobile};
-	\node [block, below of=automobile] (color2) {color};
-	\node [block, left of = color2] (model2) {model};
-	\node [block, right of = color2] (age2) {age};
-	\path [line] (automobile) -- (color2);
-	\path [line] (automobile) -- (model2);
-	\path [line] (automobile) -- (age2);
-	
-	\path [line,dashed] (color) -- (color2);
-	\path [line,dashed] (age) -- (age2);
-	\path [line,dashed] (model) -- (model2);
-	\end{tikzpicture}
+\begin{tabular}{|l|c|c|}
+  \hline
+  & edit distance & semantic distance \\\hline
+  automobile-car & 10 & 0.1 \\\hline
+  automobile-color & 8 & 1 \\\hline
+  automobile-age & 8 & 1 \\\hline
+  automobile-owned by & 9 & 1 \\\hline
+  color-car & 3 & 1 \\\hline
+  color-color & 0 & 0 \\\hline
+  color-age & 5 & 1 \\\hline
+  color-owned by & 8 & 1 \\\hline
+  years-car & 3 & 1 \\\hline
+  years-color & 5 & 1 \\\hline
+  years-age & 4 & 0.6 \\\hline
+  years-owned by & 7 & 1 \\\hline
+  owner-car & 4 & 1 \\\hline
+  owner-color & 4 & 1 \\\hline
+  owner-age & 4 & 1 \\\hline
+  owner-owned by & 4 & 0.5 \\\hline
+\end{tabular}
 \end{center}
 
-We can determine that ``car'' and ``automobile'' are the same without recourse to semantic methods, purely from the extreme similarity of their children.
+For each column pair, we now need to aggregate these distances to get a
+final score. Existing toolkits allow the user to choose how they want to
+aggregate. For example, COMA lets the user decide whether they want
+the maximum score, the minimum score, the average, or median score.
+All of these approaches discard a lot of information and also require
+that each distance measure be normalized to have the same
+scale, typically between $0$ and $1$.
 
-Finally, there is measuring similarity based on instances. The obvious way to do this is just by applying an aggregate version of one of the similarity measures like those used for label names. For example, given a method to determine lexicographic similarity between any pair of instances, one can take an average of the similarity scores for the best match over every instance for one (or both) items. \cite{comainstance}
+Different distance measures provide different amounts of information
+about whether a pair of columns contain the same type of
+information. Ideally, we would weight the contribution of different
+distances measures based upon how much information it contributes to
+the problem of column matching. While it's possible to choose weights
+manually, it is a difficult task to do well especially as the number
+of distance measures increases. Many existing toolkits do allow for
+the user to set weights.
 
-One can also exploit structural features of the instances. One method, described in \cite{regex}, is to develop a library of common formats (e.g. different ways to write dates/times, email addresses, zip codes, etc.) described by regular expressions, and assign higher similarity scores to pairs of items whose items match corresponding regex formats well. In some cases, like database specifications, some of this datatype information is actually encoded in the schema, and so that can simply be used instead.
+It would be a much more efficient use of information, and also
+simpler, to use the distance measures as features in a statistical
+model that predicted whether a pair of columns were about the same
+thing or not. Here, the algorithm sets the weights automatically,
+based upon training data. Some existing schema matching systems use
+this machine learning approach like LSD \cite{machine}, but it is rare.
 
-Given a set of measures to use, a natural way to store all the obtained numerical similarities is in a matrix, in which rows correspond to items from one schema and columns to items from another; each measure then has its own matrix. (Alternately, it can be conceived of as a third dimension of the matrix; hence the term ``similarity cube'' used by \cite{coma}.) Such a matrix might look like the one below with two layers corresponding to two very simple matchers:
+In addition to automatically learning weights, a machine learning
+approach can make the construction of distance functions much
+simpler. If the distance scores were simply features, then we could
+remove many of the arbitrary decisions that we must make within the
+existing approach. For example, instead of choosing how to score the
+distance between a timezone data type and a integer data type, we could
+just have a set of indicator variables that indicate what combination
+of data types a pair of columns have. Using logistic regression, or a
+similar technique, we would then learn what combinations suggested a
+good match or a bad match.
 
-\begin{tabular}{|c|c|c|c|c|}
-	\hline
-LEXICAL & car & color & age & owned by \\\hline
-automobile & 0 & 0 & 0 & 0 \\\hline
-color & 0 & 1 & 0 & 0 \\\hline
-years & 0 & 0 & 0 & 0 \\\hline
-owner & 0 & 0 & 0 & 0.6 \\\hline
+In order to use the machine learning, we must have training
+data, in the form of pairs of columns that have been labeled as either
+matching or not. These labels can be solicited from users through
+Active Learning. In Active Learning, the predictive model is
+initialized, and the system identifies column pairs where there is the
+greatest uncertainty of whether the pair is a match or not. This pair
+is presented to the user for labeling. This new labeled example is
+used to update the predictive model and the system now finds a new
+pair that it is most uncertain about. In our experience, a very good
+model can be learned with 50 user solicited labels.
+
+\subsection*{Final Scores}
+At the end of this stage, we should have final score for every
+column. If we were using a machine learning approach and the same
+tables as we used in the example above, it might look like this.
+
+\begin{center}
+\begin{tabular}{|l|c|c|c|}
+  \hline
+  & edit distance & semantic distance & \textbf{probability of a match} \\\hline
+  automobile-car & 10 & 0.1 & 0.8 \\\hline
+  automobile-color & 8 & 1 & 0.1 \\\hline
+  automobile-age & 8 & 1 & 0.1 \\\hline
+  automobile-owned by & 9 & 1 & 0.1 \\\hline
+  color-car & 3 & 1 & 0.3 \\\hline
+  color-color & 0 & 0 & 1.0 \\\hline
+  color-age & 5 & 1 & 0.2 \\\hline
+  color-owned by & 8 & 1 & 0.1\\\hline
+  years-car & 3 & 1 & 0.3 \\\hline
+  years-color & 5 & 1 & 0.2 \\\hline
+  years-age & 4 & 0.6 & 0.7 \\\hline
+  years-owned by & 7 & 1 & 0.1 \\\hline
+  owner-car & 4 & 1 & 0.2 \\\hline
+  owner-color & 4 & 1 & 0.2 \\\hline
+  owner-age & 4 & 1 & 0.3 \\\hline
+  owner-owned by & 4 & 0.5 & 0.6 \\\hline
 \end{tabular}
+\end{center}
 
-\begin{tabular}{|c|c|c|c|c|}
-	\hline
-	SEMANTIC & car & color & age & owned by \\\hline
-	automobile & 0.9 & 0 & 0 & 0 \\\hline
-	color & 0 & 1 & 0 & 0 \\\hline
-	years & 0 & 0 & 0.4 & 0 \\\hline
-	owner & 0 & 0 & 0 & 0.5 \\\hline
+\section{Aligning Columns}
+Once we have the final column-pair scores, we can now decide which
+columns actually contain comparable information. There are number of
+ways to do this, and which one is best will depend on what assumptions
+you can make about the tables.
+
+\subsection*{Simple Threshold}
+The most conservative approach is to consider all column pairs that
+have a score higher than some threshold. So if we set a threshold of
+$0.3$ we would consider these possible column matches:
+
+\begin{center}
+\begin{tabular}{|l|c|c|c|}
+  \hline
+  & edit distance & semantic distance & \textbf{probability of a match} \\\hline
+  automobile-car & 10 & 0.1 & 0.8 \\\hline
+  color-car & 3 & 1 & 0.3 \\\hline
+  color-color & 0 & 0 & 1.0 \\\hline
+  years-car & 3 & 1 & 0.3 \\\hline
+  years-age & 4 & 0.6 & 0.7 \\\hline
+  owner-age & 4 & 1 & 0.3 \\\hline
+  owner-owned by & 4 & 0.5 & 0.6 \\\hline
 \end{tabular}
+\end{center}
+
+This equivalent to assuming that a table can have columns with
+somewhat redundant data. In this case, we would need to consider the
+possibility that the \verb+automobile+, \verb+color+, and \verb+years+
+columns from the first table have redundant data. This is commonly
+happens with names and addresses, where the parts of an name or
+address are split across multiple column, i.e. \verb+address_1+,
+\verb+address_2+, \verb+zipcode+.
+
+\subsection*{Assuming Non-redundancy}
+If we assume that tables do not contain redundant columns, then if we
+select one column pair, we will not consider any other pairs that have
+either of those two columns.
+
+There are few ways to do this, but in practice, a greedy approach
+works well. First, choose the highest scoring column pair, then
+discard all remaining pairs that have a column in common with the
+chosen pair, then choose the highest scoring column pair. Repeat until
+the set of column pairs is empty.
+
+\begin{center}
+\begin{tabular}{|l|c|c|c|}
+  \hline
+  & edit distance & semantic distance & \textbf{probability of a match} \\\hline
+  automobile-car & 10 & 0.1 & 0.8 \\\hline
+  color-color & 0 & 0 & 1.0 \\\hline
+  years-age & 4 & 0.6 & 0.7 \\\hline
+  owner-owned by & 4 & 0.5 & 0.6 \\\hline
+\end{tabular}
+\end{center}
+
+This approach also assumes that the columns in one table are a subset
+of the columns in the other. In other words, every column in the
+narrower table has matching column in the larger table.
+
+We can relax that assumption by using the greedy approach, but only
+considering column pairs that have scores above some threshold.
+
+\section*{Table Matching}
+While we do want to know what columns we can compare, this usually
+comes after identifying what tables are likely to contain data about
+the same type of entities.
+
+Once we compared all the columns in the table, we can combine the column
+pair distances into table level distances.
+
+In existing systems, the typical way of doing this is to first align
+the columns, using one of the approaches described in the previous
+section. Then take the average score of those columns. This approach
+depends on the column alignment strategy, the width of the columns,
+and the threshold.
+
+Using the simple threshold strategy for column alignment, the average
+score between our example tables is $0.57$ if the column alignment score
+threshold is $0.3$, but the table comparison score jumps to $0.78$ if
+the column alignment score threshold is raised to $0.5$.
+
+A good measure of table similarity should only depend upon column
+similarity, not column alignment. There are a few approaches here that
+could be useful. In particular, we should investigate comparing the
+observed distribution of scores in a final column match table with the
+distribution that would be expected if we compared a random sample of
+columns. This should give us a measure that should not depend on
+column alignment or table widths.
+
+\section*{Computational Complexity}
+The approaches in the existing toolkits cannot scale to large
+collections of data. Everything builds on comparing columns, and the
+number of comparisons is the Cartesian product of the width of columns
+in each dataset.
+
+Let's say that all datasets in a collection have at least $5$ columns. For
+each pair of datasets there are $25$ ways to combine the $5$ columns from
+each dataset. If there are $20$ datasets, then there are $190$ combinations
+of datasets. So for each distance measure, we will need to make at
+least $4,750$ comparisons. If there are $100$ datasets, we will need to
+make at least $123,750$ comparisons. If there are $1000$ datasets, we
+will need to make at least $12,487,500$ comparisons.
+
+In order to reach scale, we will need to find a way to cut down on the
+number of comparisons we have to make. The most promising way to do
+this is with blocking. In blocking, we find a feature that columns
+which are likely to be comparable are likely to share, and then we
+only compare columns that share that feature. For example, we could
+only compare columns that had the same data type. Choosing good
+blocking rules involves a trade off between using enough blocking
+rules that you compare all the columns that should be compared while
+comparing the fewest combination of columns overall. The machine
+learning approach used in record linkage for blocking can be applied here.\cite{bilenko}
 
 
-Before aggregation, however, often it is useful to do some ``post-processing'' of the similarity matrix, as similarity scores between items can be used in conjunction with other ideas to obtain better measures. For example, if our schemas are directed graphs indicating a hierarchical relation, items/nodes whose children have strong similarity scores should also obtain a boost to their own similarity scores. This is especially relevant if child nodes are the ones with instance data, and so can be analyzed for similarity more thoroughly, since this gives us a way to pass that information back up the tree; see \cite{comainstance}. 
 
-In addition, one may wish to assume transivity in matching; if the edges in a graph representation are bidirectional and indicate some sort of relatedness, matching scores can be propagated in those directions. If one uses an intermediary schema containing already known semantic information, as suggested earlier, this type of propagation can also be used.
-
-\section{Aggregation}
-
-Before aggregating all of the individual similarity scores into actual matches between schema items, one must decide whether one wishes to do a left merge or a total merge. That is, does one want the final schema to essentially be the left schema with as much of the right schema integrated as possible, or a collection of all items in both schemas, with some items identified? The two make sense in different contexts, though the tools we will describe below are not substantially different between them.
-
-\cite{coma} breaks down the progression to selecting matches based on the matrix of similarity scores in a very logical fashion, so I follow them here. 
-
-In the first place, one should calculate an aggregate score for each pair of items, based on all of the match scores (as well as any auxiliary/derived scores, as mentioned at the end of the last section). Conceptually, this is just some sort of measure of center of all of the similarity scores. On one extreme, we can be very risky and take the maximum similarity score; this is almost never a good idea, especially since many of the individual matchers mentioned above are very naive and shallow on their own. On the other, we can be extremely conservative and take the minimum score; this is also usually ill-advised. In between, there are averages of all kinds, the simplest of which would be the classic unweighted mean and median. 
-
-Weighted averages offer more sophistication, and indeed, simply putting weights on matchers based on heuristic estimates of how reliable they are can be useful. Even more effective, however, is the idea of using machine learning. With a relatively small amount user input in the form of some number of true item matches, matching algorithms such as LSD \cite{machine} use the performance of different matchers on this training data to find appropriate weights. (Various algorithms can be used; LSD simply does a least squares regression.) 
-
-To fine tune this further, one could adopt an idea implemented in DataMade's Dedupe algorithm, for the related problem of finding duplicate rows in a database: using the matchers, create an initial model of matches between the schemas, and then solicit input from the user by asking about whether certain items are true matches so as to adjust the weights as efficiently as possible.
-
-Given now a way to obtain aggregate match scores between each pair of items (i.e. having collapsed the third dimension of the similarity cube), it remains to actually select the match candidates. One can require the candidate to be the best match for each item in the first schema, the best item for each item in the second schema, or both, depending on how conservative one wishes to be. In the case of a left merge, of course only the first and the third options make sense.
-
-If one wishes to potentially allow multiple matches, one can use some combination of setting an absolute threshold and choosing top-$n$ matches. An interesting idea from \cite{coma} is to set a threshold relative to the score of the best match, the idea being that multiple matches should occur when there is a group of potential matches which all have close to the same high score.
-
-\section{Evaluation}
-
-With artificially chosen examples of a certain type, evaluation of schema matching can be done in a perfectly standard way. That is, evaluating on schemas which are small and simple enough that objectively correct matches can be given by hand, one can evaluate a schema matcher simply by using the standard measures of precision and recall of automatically detected matches against true matches, inside the space of all possible matches between items.
-
-However, behavior on problems which are larger and more complex may be drastically different than the simple ones for which this is possible; such problems not only may not be feasible to do by hand, but may not have a clear objectively correct set of matches. One would also like to get an idea of how effective a ``real'' application of the matching is, which of course is not hand-verifiable, since otherwise there is no need for the tool. Furthermore, the above discussion on precision/recall applies naturally only to total merges.
-
-To this end, \cite{comabenchmark} outlines some measures which can be used to judge the quality of a matching by means other than accuracy relative to some ``true'' set of matches. Instead, the measures evaluate other aspects of the quality of the merge, based on conceptual understandability and coherence. The essential concepts used are those of coverage, redundancy, compactness.
-
-The \textbf{coverage} of a match refers to what ratio of the total combined items of the original two schemas are represented in the final schema. In cases where the schemas are inheritance-type structures (i.e. represented by directed graphs), particularly when only the bottom-level child items have instance data associated with them like in many databases, one may also consider this ratio restricted to these bottom-level items, since the idea here is that we do not wish to lose information. Of course, this only really makes sense either when we are doing a left merge, or when we are using a match candidate selection technique (see previous section) involving thresholding of some sort; otherwise, of course all the items will be included and the result will always be $1$.
-
-The \textbf{compactness} of a match refers to the ratio of the size of the final merged schema to the sum of the sizes of the two schemas individually. A lower number is desirable because, often, one of the points of the merge is to reduce the schema to a more humanly comprehensible size.
-
-The \textbf{redundancy} of a match applies in cases of inheritance-type directed graph representations; the idea is that one would not like the bottom-level child items to have multiple inheritance paths. Thus, we define it as the ratio between the number of inheritance paths to bottom-level items in the final merged schema to the number of bottom-level items.
-
-Clearly, much like traditional measures such as precision/recall, these measures are designed to have mutual trade-off relationships. For example, coverage and compactness obviously are mutually antagonistic; the only way to obtain both is to match a very high number of items. One can think of redundancy as a measure to prevent just blindly matching many items to achieve good coverage and compactness, since if many of the matches were spurious, almost certainly the non-matching inheritance structures would cause a great deal of redundancy.
 
 \section{Further resources}
 
-It shoudld be noted that the literature on schema matching/ontology merging is vast, and this article did not begin to review it. Instead, aiming at giving an idea of the different steps in how a matching algorithm might be implemented, it largely followed the outline of one particularly flexible matcher (COMA) with many common features. An enormous number of other matchers exist, however, some having completely different sets of features.
 
-A much more comprehensive further resource is \url{ontologymatching.org}, the home page of an organization which hosts academic conferences on the topic. There, one can find much more comprehensive (though often extremely long) surveys, other recent publications, and information on conferences. A subsidiary, the Ontology Alignment Evaluation Initiative, documents online its evaluations of many existing matchers, which may also be of interest.
+A much more comprehensive further resource is
+\url{ontologymatching.org}, the home page of an organization which
+hosts academic conferences on the topic. There, one can find much more
+comprehensive (though often extremely long) surveys, other recent
+publications, and information on conferences. A subsidiary, the
+Ontology Alignment Evaluation Initiative, provides evaluations of many
+existing matchers, which may also be of interest.
 
-Finally, listed below are a collection of open-source schema matchers whose licensing, documentation, and source code is all easily accessible online. A brief summary of their basic features is given in the table, though of course each also has many other varying focuses and strengths.
+Finally, listed below are a collection of open-source schema matchers
+whose licensing, documentation, and source code is all easily
+accessible online. A brief summary of their basic features is given in
+the table, though of course each also has many other varying focuses
+and strengths.
 
 \begin{tabular}{|c|c|c|c|c|c|}
 \hline
@@ -516,8 +675,8 @@ All matchers listed are cross-platform, written in Java, with both command-line 
 	
 	\bibitem{machine}
 	Doan, AnHai et. al.
-	``Reconciling Schemas of Disparate Data Sources: A Machine-Learning Approach.''
-	\emph{ACM SIGMOD}, Santa Barbara (2001).
+	``Reconciling Schemas of Disparate Data Sources: A
+        Machine-Learning Approach.'' \emph{ACM SIGMOD}, Santa Barbara (2001).
 	\url{http://homes.cs.washington.edu/~pedrod/papers/sigmod01.pdf}
 	
 	\bibitem{comainstance}
@@ -542,5 +701,22 @@ All matchers listed are cross-platform, written in Java, with both command-line 
 	``Utilizing Regular Expressions for Instance-Based Schema Matching.''
 	Leibniz Institute for the Social Sciences.
 	\url{http://ceur-ws.org/Vol-946/om2012_poster4.pdf}
+
+      \bibitem{wordnet}
+        Princeton University ``About WordNet.'' WordNet. Princeton
+        University. \url{http://wordnet.princeton.edu}
+
+      \bibitem{gensim}
+        {\v R}eh{\r u}{\v r}ek, Radim and Petr Sojka. ``Software
+        Framework for Topic Modelling with Large Corpora.''
+        \emph{Proceedings of the LREC 2010 Workshop on New Challenges
+          for NLP
+          Frameworks}. ELRA. \url{http://is.muni.cz/publication/884893/en}
+        
+
+      \bibitem{bilenko} Bilenko, Mikhail. \emph{Learnable Similarity Functions
+        and their Application to Record Linkage and
+        Clustering}. University of Texas. \url{http://www.cs.utexas.edu/%7Eml/papers/marlin-dissertation-06.pdf}
+        
 \end{thebibliography}
 \end{document}
